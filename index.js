@@ -229,6 +229,64 @@ app.post("/favorites", async (req, res) => {
 
 
 
+// Get reviews by user
+app.get("/reviews/user/:email", async (req, res) => {
+  const reviews = await reviewsCollection.find({ reviewerEmail: req.params.email }).toArray();
+  res.send(reviews);
+});
+
+// Get favorites by user
+app.get("/favorites/user/:email", async (req, res) => {
+  const favorites = await favoritesCollection.find({ userEmail: req.params.email }).toArray();
+  res.send(favorites);
+});
+
+
+
+
+
+
+// Delete review by ID
+app.delete("/reviews/:id", async (req, res) => {
+  const { id } = req.params;
+  const result = await reviewsCollection.deleteOne({ _id: new ObjectId(id) });
+  res.send({ success: result.deletedCount === 1 });
+});
+
+// Update review by ID
+app.put("/reviews/:id", async (req, res) => {
+  const { id } = req.params;
+  const { rating, comment } = req.body;
+
+  const result = await reviewsCollection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { rating, comment, updatedAt: new Date() } }
+  );
+
+  res.send({ success: result.modifiedCount === 1 });
+});
+
+
+
+
+
+// Delete favorite by ID
+app.delete("/favorites/:id", async (req, res) => {
+  try {
+    await favoritesCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+    res.send({ success: true });
+  } catch (err) {
+    res.send({ success: false, message: err.message });
+  }
+});
+
+
+
+
+
+
+
+
 // Place order
 app.post("/orders", async (req, res) => {
   const order = { ...req.body, orderTime: new Date(), orderStatus: "pending" };
