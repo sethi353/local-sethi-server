@@ -68,9 +68,23 @@ app.post("/users", async (req, res) => {
   const exists = await usersCollection.findOne({ email: user.email });
   if (exists) return res.send({ message: "User exists" });
 
-  const result = await usersCollection.insertOne(user);
+  const result = await usersCollection.insertOne({
+    name: user.name,
+    email: user.email,
+    image: user.image || "",
+    role: "user",       // 🔐 FORCE
+    status: "active",   // 🔐 FORCE
+    chefId: null,
+    createdAt: new Date()
+  });
   res.send(result);
 });
+
+
+
+
+
+
 
 // Get user by email
 app.get("/users/:email", async (req, res) => {
@@ -78,6 +92,31 @@ app.get("/users/:email", async (req, res) => {
   if (!user) return res.status(404).send({ message: "User not found" });
   res.send(user);
 });
+
+
+
+// Get all users (Admin)
+app.get("/users", async (req, res) => {
+  const users = await usersCollection.find().toArray();
+  res.send(users);
+});
+
+
+
+// Make Fraud Route
+app.patch("/users/fraud/:id", async (req, res) => {
+  const result = await usersCollection.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { status: "fraud" } }
+  );
+
+  res.send({ success: result.modifiedCount === 1 });
+});
+
+
+
+
+
 
 // Update role
 app.patch("/users/:id", async (req, res) => {
@@ -141,12 +180,34 @@ app.patch("/role-request/:id", async (req, res) => {
 });
 
 
-// Create meal
+// // Create meal
+// app.post("/meals", async (req, res) => {
+//   const meal = { ...req.body, createdAt: new Date() };
+//   const result = await mealsCollection.insertOne(meal);
+//   res.send(result);
+// });
+
+
+
+// create meal
 app.post("/meals", async (req, res) => {
+  const chef = await usersCollection.findOne({ email: req.body.chefEmail });
+
+  if (chef?.status === "fraud") {
+    return res.status(403).send({
+      message: "Fraud chefs cannot create meals"
+    });
+  }
+
   const meal = { ...req.body, createdAt: new Date() };
   const result = await mealsCollection.insertOne(meal);
   res.send(result);
 });
+
+
+
+
+
 
 // Get all meals
 app.get("/meals", async (req, res) => {
@@ -316,18 +377,80 @@ app.delete("/favorites/:id", async (req, res) => {
 
 
 
-// Place order
+// // Place order
+// app.post("/orders", async (req, res) => {
+//   const order = { ...req.body, orderTime: new Date(), orderStatus: "pending" };
+//   const result = await ordersCollection.insertOne(order);
+//   res.send(result);
+// });
+
+
+// place order
 app.post("/orders", async (req, res) => {
-  const order = { ...req.body, orderTime: new Date(), orderStatus: "pending" };
+  const user = await usersCollection.findOne({ email: req.body.userEmail });
+
+  if (user?.status === "fraud") {
+    return res.status(403).send({
+      message: "Fraud users cannot place orders"
+    });
+  }
+
+  const order = {
+    ...req.body,
+    orderTime: new Date(),
+    orderStatus: "pending"
+  };
+
   const result = await ordersCollection.insertOne(order);
   res.send(result);
 });
+
+
+
 
 // Get user orders
 app.get("/orders/:email", async (req, res) => {
   const orders = await ordersCollection.find({ userEmail: req.params.email }).toArray();
   res.send(orders);
 });
+
+
+
+
+
+// Get orders for a chef
+app.get("/chef-orders/:email", async (req, res) => {
+  const chefEmail = req.params.email;
+
+  // Find orders where this chef is assigned
+  const orders = await ordersCollection.find({ chefEmail }).toArray();
+
+  res.send(orders);
+});
+
+
+// Update order status
+app.patch("/orders/:id", async (req, res) => {
+  try {
+    const { orderStatus } = req.body;
+    const orderId = req.params.id;
+
+    const result = await ordersCollection.updateOne(
+      { _id: new ObjectId(orderId) },
+      { $set: { orderStatus, updatedAt: new Date() } }
+    );
+
+    if (result.modifiedCount === 1) {
+      res.send({ success: true });
+    } else {
+      res.status(404).send({ success: false, message: "Order not found" });
+    }
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({ success: false, message: err.message });
+  }
+});
+
 
 
 
