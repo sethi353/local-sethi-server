@@ -210,9 +210,34 @@ app.post("/meals", async (req, res) => {
 
 
 // Get all meals
+// app.get("/meals", async (req, res) => {
+//   const meals = await mealsCollection.find().toArray();
+//   res.send(meals);
+// });
+
+
+
+
+
+
+// Get all meals with optional limit and sort
 app.get("/meals", async (req, res) => {
-  const meals = await mealsCollection.find().toArray();
-  res.send(meals);
+  try {
+    const { limit, sort } = req.query;
+    let cursor = mealsCollection.find();
+
+    if (sort === "asc") cursor = cursor.sort({ price: 1 });
+    else if (sort === "desc") cursor = cursor.sort({ price: -1 });
+
+    const numLimit = parseInt(limit) || 0;
+    if (numLimit > 0) cursor = cursor.limit(numLimit);
+
+    const meals = await cursor.toArray();
+    res.send(meals);
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({ message: "Server error" });
+  }
 });
 
 
@@ -266,22 +291,54 @@ app.get("/meals/:id", async (req, res) => {
 // ================= REVIEWS =================
 
 // Get reviews for a meal
-app.get("/reviews/:foodId", async (req, res) => {
-  const foodId = req.params.foodId;
+// app.get("/reviews/:foodId", async (req, res) => {
+//   const foodId = req.params.foodId;
 
-  const reviews = await reviewsCollection
-    .find({ foodId })
-    .sort({ date: -1 })
-    .toArray();
+//   const reviews = await reviewsCollection
+//     .find({ foodId })
+//     .sort({ date: -1 })
+//     .toArray();
 
-  res.send(reviews);
-});
+//   res.send(reviews);
+// });
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // SAFETY ROUTE (important)
-app.get("/reviews", (req, res) => {
-  res.send([]);
+// app.get("/reviews", (req, res) => {
+//   res.send([]);
+// });
+
+
+
+
+
+// Get all reviews
+app.get("/reviews", async (req, res) => {
+  try {
+    const reviews = await reviewsCollection.find().sort({ date: -1 }).toArray();
+    res.send(reviews);
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({ message: "Server error" });
+  }
 });
+
+
+
+
+
 
 // Add review
 app.post("/reviews", async (req, res) => {
