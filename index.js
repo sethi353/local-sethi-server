@@ -157,6 +157,35 @@ app.get("/meals", async (req, res) => {
 
 
 
+// Get meals by chef email
+app.get("/meals/chef/:email", async (req, res) => {
+  const email = req.params.email;
+  const meals = await mealsCollection.find({ chefEmail: email }).toArray();
+  res.send(meals);
+});
+
+
+
+app.delete("/meals/:id", async (req, res) => {
+  const result = await mealsCollection.deleteOne({
+    _id: new ObjectId(req.params.id)
+  });
+  res.send({ success: result.deletedCount === 1 });
+});
+
+
+app.put("/meals/:id", async (req, res) => {
+  const result = await mealsCollection.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { ...req.body, updatedAt: new Date() } }
+  );
+  res.send({ success: result.modifiedCount === 1 });
+});
+
+
+
+
+
 
 // Get single meal by ID (Meal Details Page)
 app.get("/meals/:id", async (req, res) => {
