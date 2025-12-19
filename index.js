@@ -59,6 +59,36 @@ client.connect().then(() => {
 
    
   console.log("MongoDB connected");
+
+  
+
+  // Get total number of users
+app.get("/users/count", async (req, res) => {
+  try {
+    const totalUsers = await usersCollection.countDocuments();
+    res.send({ totalUsers });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({ message: "Server error" });
+  }
+});
+
+// Get number of orders with status "pending"
+app.get("/orders/pending/count", async (req, res) => {
+  try {
+    const pendingOrders = await ordersCollection.countDocuments({ orderStatus: "pending" });
+    res.send({ pendingOrders });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({ message: "Server error" });
+  }
+});
+
+
+
+
+
+
     app.listen(5000, () => console.log("Server running on port 5000"));
 });
 
