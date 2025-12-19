@@ -322,6 +322,25 @@ app.get("/meals/:id", async (req, res) => {
 
 
 
+// ✅ ADD THIS BLOCK (RIGHT HERE)
+app.get("/reviews/:mealId", async (req, res) => {
+  try {
+    const mealId = req.params.mealId;
+
+    const reviews = await reviewsCollection
+      .find({ mealId })
+      .sort({ date: -1 })
+      .toArray();
+
+    res.send(reviews); // always return array
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({ message: "Server error" });
+  }
+});
+
+
+
 
 
 // Get all reviews
