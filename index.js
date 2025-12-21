@@ -60,6 +60,11 @@ client.connect().then(() => {
    
   console.log("MongoDB connected");
 
+  app.get("/", (req, res) => {
+  res.send("🚀 LocalChefBazaar Server is Running Successfully!");
+});
+
+
   
 
   // Get total number of users
