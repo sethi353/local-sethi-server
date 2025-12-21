@@ -68,15 +68,15 @@ client.connect().then(() => {
   
 
   // Get total number of users
-app.get("/users/count", async (req, res) => {
-  try {
-    const totalUsers = await usersCollection.countDocuments();
-    res.send({ totalUsers });
-  } catch (err) {
-    console.log(err);
-    res.status(500).send({ message: "Server error" });
-  }
-});
+// app.get("/users/count", async (req, res) => {
+//   try {
+//     const totalUsers = await usersCollection.countDocuments();
+//     res.send({ totalUsers });
+//   } catch (err) {
+//     console.log(err);
+//     res.status(500).send({ message: "Server error" });
+//   }
+// });
 
 // Get number of orders with status "pending"
 app.get("/orders/pending/count", async (req, res) => {
@@ -117,6 +117,18 @@ app.post("/users", async (req, res) => {
 
 
 
+
+ // Get total number of users
+
+app.get("/users/count", async (req, res) => {
+  try {
+    const totalUsers = await usersCollection.countDocuments();
+    res.send({ totalUsers });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({ message: "Server error" });
+  }
+});
 
 
 
