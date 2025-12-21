@@ -64,7 +64,7 @@ app.get("/orders/pending/count", async (req, res) => {
 
 
 
-    app.listen(5000, () => console.log("Server running on port 5000"));
+    // app.listen(5000, () => console.log("Server running on port 5000"));
 });
 
 // Save user
@@ -77,8 +77,8 @@ app.post("/users", async (req, res) => {
     name: user.name,
     email: user.email,
     image: user.image || "",
-    role: "user",       // 🔐 FORCE
-    status: "active",   // 🔐 FORCE
+    role: "user",       
+    status: "active",   
     chefId: null,
     createdAt: new Date()
   });
