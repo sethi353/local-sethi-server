@@ -1,34 +1,4 @@
-// const express = require("express");
-// const cors = require("cors");
-// require("dotenv").config();
 
-// const { connectDB } = require("./utils/db");
-// const userRoutes = require("./routes/users");
-// const testRoutes = require("./routes/test");
-// const reviewRoutes = require("./routes/reviews");
-// const favoriteRoutes = require("./routes/favorites");
-// const orderRoutes = require("./routes/orders");
-
-// const app = express();
-// const port = process.env.PORT || 5000;
-
-// app.use(cors());
-// app.use(express.json());
-// app.use("/users", userRoutes);
-// app.use("/test", testRoutes);
-// app.use("/reviews", reviewRoutes);
-// app.use("/favorites", favoriteRoutes);
-// app.use("/orders", orderRoutes);
-
-// connectDB();
-
-// app.get("/", (req, res) => {
-//   res.send("LocalChefBazaar Server Running");
-// });
-
-// app.listen(port, () => {
-//   console.log(`Server running on port ${port}`);
-// });
 
 const express = require("express");
 const cors = require("cors");
