@@ -1,8 +1,11 @@
-// api/index.js
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const serverless = require("serverless-http");
 const { MongoClient, ObjectId } = require("mongodb");
+
+
 
 const app = express();
 app.use(cors());
