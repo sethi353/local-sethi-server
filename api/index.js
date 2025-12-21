@@ -1,5 +1,3 @@
-
-
 const express = require("express");
 const cors = require("cors");
 const serverless = require("serverless-http");
@@ -9,7 +7,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ---------- MongoDB Setup (Serverless-Friendly) ----------
+// ---------- MongoDB (Vercel Safe) ----------
 let cachedClient = null;
 let cachedDb = null;
 
@@ -26,7 +24,7 @@ async function connectDB() {
   }
 
   if (!cachedClient) {
-    cachedClient = new MongoClient(process.env.MONGO_URI, { useUnifiedTopology: true });
+    cachedClient = new MongoClient(process.env.MONGO_URI);
     await cachedClient.connect();
   }
 
@@ -42,18 +40,17 @@ async function connectDB() {
   };
 }
 
-// ---------- ROUTES ----------
-
-// Root
-app.get("/", async (req, res) => {
+// ---------- ROOT ----------
+app.get("/", (req, res) => {
   res.send("🚀 LocalChefBazaar Server is Running Successfully!");
 });
 
-// ---------- Users ----------
+// ---------- USERS ----------
 app.post("/users", async (req, res) => {
   try {
     const { usersCollection } = await connectDB();
     const user = req.body;
+
     const exists = await usersCollection.findOne({ email: user.email });
     if (exists) return res.send({ message: "User exists" });
 
@@ -69,19 +66,25 @@ app.post("/users", async (req, res) => {
 
     res.send(result);
   } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: "Server error" });
+    res.status(500).send({ message: err.message });
+  }
+});
+
+app.get("/users", async (req, res) => {
+  try {
+    const { usersCollection } = await connectDB();
+    res.send(await usersCollection.find().toArray());
+  } catch (err) {
+    res.status(500).send({ message: err.message });
   }
 });
 
 app.get("/users/count", async (req, res) => {
   try {
     const { usersCollection } = await connectDB();
-    const totalUsers = await usersCollection.countDocuments();
-    res.send({ totalUsers });
+    res.send({ totalUsers: await usersCollection.countDocuments() });
   } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: "Server error" });
+    res.status(500).send({ message: err.message });
   }
 });
 
@@ -92,19 +95,7 @@ app.get("/users/:email", async (req, res) => {
     if (!user) return res.status(404).send({ message: "User not found" });
     res.send(user);
   } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: "Server error" });
-  }
-});
-
-app.get("/users", async (req, res) => {
-  try {
-    const { usersCollection } = await connectDB();
-    const users = await usersCollection.find().toArray();
-    res.send(users);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: "Server error" });
+    res.status(500).send({ message: err.message });
   }
 });
 
@@ -117,7 +108,6 @@ app.patch("/users/fraud/:id", async (req, res) => {
     );
     res.send({ success: result.modifiedCount === 1 });
   } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
@@ -131,29 +121,25 @@ app.patch("/users/:id", async (req, res) => {
     );
     res.send(result);
   } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
 
-// ---------- Role Requests ----------
+// ---------- ROLE REQUEST ----------
 app.post("/role-request", async (req, res) => {
   try {
     const { roleRequestsCollection } = await connectDB();
-    const { userName, userEmail, requestType } = req.body;
-    const exists = await roleRequestsCollection.findOne({ userEmail, requestType });
+    const exists = await roleRequestsCollection.findOne(req.body);
     if (exists) return res.send({ message: "Request already sent" });
 
     const result = await roleRequestsCollection.insertOne({
-      userName,
-      userEmail,
-      requestType,
+      ...req.body,
       requestStatus: "pending",
       requestTime: new Date(),
     });
+
     res.send(result);
   } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
@@ -161,10 +147,8 @@ app.post("/role-request", async (req, res) => {
 app.get("/role-request", async (req, res) => {
   try {
     const { roleRequestsCollection } = await connectDB();
-    const requests = await roleRequestsCollection.find().toArray();
-    res.send(requests);
+    res.send(await roleRequestsCollection.find().toArray());
   } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
@@ -188,34 +172,28 @@ app.patch("/role-request/:id", async (req, res) => {
 
     res.send({ message: "Request updated" });
   } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
 
-// ---------- Orders ----------
-app.get("/orders/pending/count", async (req, res) => {
-  try {
-    const { ordersCollection } = await connectDB();
-    const pendingOrders = await ordersCollection.countDocuments({ orderStatus: "pending" });
-    res.send({ pendingOrders });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: err.message });
-  }
-});
-
+// ---------- ORDERS ----------
 app.post("/orders", async (req, res) => {
   try {
     const { ordersCollection, usersCollection } = await connectDB();
     const user = await usersCollection.findOne({ email: req.body.userEmail });
-    if (user?.status === "fraud") return res.status(403).send({ message: "Fraud users cannot place orders" });
+    if (user?.status === "fraud") {
+      return res.status(403).send({ message: "Fraud users cannot place orders" });
+    }
 
-    const order = { ...req.body, orderTime: new Date(), orderStatus: "pending" };
+    const order = {
+      ...req.body,
+      orderStatus: "pending",
+      orderTime: new Date(),
+    };
+
     const result = await ordersCollection.insertOne(order);
     res.send(result);
   } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
@@ -223,21 +201,8 @@ app.post("/orders", async (req, res) => {
 app.get("/orders/:email", async (req, res) => {
   try {
     const { ordersCollection } = await connectDB();
-    const orders = await ordersCollection.find({ userEmail: req.params.email }).toArray();
-    res.send(orders);
+    res.send(await ordersCollection.find({ userEmail: req.params.email }).toArray());
   } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: err.message });
-  }
-});
-
-app.get("/chef-orders/:email", async (req, res) => {
-  try {
-    const { ordersCollection } = await connectDB();
-    const orders = await ordersCollection.find({ chefEmail: req.params.email }).toArray();
-    res.send(orders);
-  } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
@@ -245,34 +210,23 @@ app.get("/chef-orders/:email", async (req, res) => {
 app.patch("/orders/:id", async (req, res) => {
   try {
     const { ordersCollection } = await connectDB();
-    const { orderStatus } = req.body;
     const result = await ordersCollection.updateOne(
       { _id: new ObjectId(req.params.id) },
-      { $set: { orderStatus, updatedAt: new Date() } }
+      { $set: { ...req.body, updatedAt: new Date() } }
     );
-    if (result.modifiedCount === 1) res.send({ success: true });
-    else res.status(404).send({ success: false, message: "Order not found" });
+    res.send({ success: result.modifiedCount === 1 });
   } catch (err) {
-    console.error(err);
-    res.status(500).send({ success: false, message: err.message });
+    res.status(500).send({ message: err.message });
   }
 });
 
-// ---------- Meals ----------
+// ---------- MEALS ----------
 app.post("/meals", async (req, res) => {
   try {
-    const { usersCollection, mealsCollection } = await connectDB();
-    const chef = await usersCollection.findOne({ email: req.body.chefEmail });
-
-    if (chef?.status === "fraud") {
-      return res.status(403).send({ message: "Fraud chefs cannot create meals" });
-    }
-
+    const { mealsCollection } = await connectDB();
     const meal = { ...req.body, createdAt: new Date() };
-    const result = await mealsCollection.insertOne(meal);
-    res.send(result);
+    res.send(await mealsCollection.insertOne(meal));
   } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
@@ -280,30 +234,8 @@ app.post("/meals", async (req, res) => {
 app.get("/meals", async (req, res) => {
   try {
     const { mealsCollection } = await connectDB();
-    const { limit, sort } = req.query;
-    let cursor = mealsCollection.find();
-
-    if (sort === "asc") cursor = cursor.sort({ price: 1 });
-    else if (sort === "desc") cursor = cursor.sort({ price: -1 });
-
-    const numLimit = parseInt(limit) || 0;
-    if (numLimit > 0) cursor = cursor.limit(numLimit);
-
-    const meals = await cursor.toArray();
-    res.send(meals);
+    res.send(await mealsCollection.find().toArray());
   } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: err.message });
-  }
-});
-
-app.get("/meals/chef/:email", async (req, res) => {
-  try {
-    const { mealsCollection } = await connectDB();
-    const meals = await mealsCollection.find({ chefEmail: req.params.email }).toArray();
-    res.send(meals);
-  } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
@@ -315,44 +247,17 @@ app.get("/meals/:id", async (req, res) => {
     if (!meal) return res.status(404).send({ message: "Meal not found" });
     res.send(meal);
   } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
 
-app.put("/meals/:id", async (req, res) => {
-  try {
-    const { mealsCollection } = await connectDB();
-    const result = await mealsCollection.updateOne(
-      { _id: new ObjectId(req.params.id) },
-      { $set: { ...req.body, updatedAt: new Date() } }
-    );
-    res.send({ success: result.modifiedCount === 1 });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: err.message });
-  }
-});
-
-app.delete("/meals/:id", async (req, res) => {
-  try {
-    const { mealsCollection } = await connectDB();
-    const result = await mealsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
-    res.send({ success: result.deletedCount === 1 });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: err.message });
-  }
-});
-
-// ---------- Reviews ----------
-app.get("/reviews/:mealId", async (req, res) => {
+// ---------- REVIEWS ----------
+app.post("/reviews", async (req, res) => {
   try {
     const { reviewsCollection } = await connectDB();
-    const reviews = await reviewsCollection.find({ mealId: req.params.mealId }).sort({ date: -1 }).toArray();
-    res.send(reviews);
+    await reviewsCollection.insertOne({ ...req.body, date: new Date() });
+    res.send({ success: true });
   } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
@@ -360,64 +265,19 @@ app.get("/reviews/:mealId", async (req, res) => {
 app.get("/reviews", async (req, res) => {
   try {
     const { reviewsCollection } = await connectDB();
-    const reviews = await reviewsCollection.find().sort({ date: -1 }).toArray();
-    res.send(reviews);
+    res.send(await reviewsCollection.find().toArray());
   } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
 
-app.post("/reviews", async (req, res) => {
-  try {
-    const { reviewsCollection } = await connectDB();
-    const review = { ...req.body, date: new Date() };
-    await reviewsCollection.insertOne(review);
-    res.send({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: err.message });
-  }
-});
-
-app.put("/reviews/:id", async (req, res) => {
-  try {
-    const { reviewsCollection } = await connectDB();
-    const { rating, comment } = req.body;
-    const result = await reviewsCollection.updateOne(
-      { _id: new ObjectId(req.params.id) },
-      { $set: { rating, comment, updatedAt: new Date() } }
-    );
-    res.send({ success: result.modifiedCount === 1 });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: err.message });
-  }
-});
-
-app.delete("/reviews/:id", async (req, res) => {
-  try {
-    const { reviewsCollection } = await connectDB();
-    const result = await reviewsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
-    res.send({ success: result.deletedCount === 1 });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send({ message: err.message });
-  }
-});
-
-// ---------- Favorites ----------
+// ---------- FAVORITES ----------
 app.post("/favorites", async (req, res) => {
   try {
     const { favoritesCollection } = await connectDB();
-    const { userEmail, mealId } = req.body;
-    const exists = await favoritesCollection.findOne({ userEmail, mealId });
-    if (exists) return res.send({ exists: true });
-
     await favoritesCollection.insertOne({ ...req.body, addedTime: new Date() });
     res.send({ success: true });
   } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
@@ -425,25 +285,12 @@ app.post("/favorites", async (req, res) => {
 app.get("/favorites/user/:email", async (req, res) => {
   try {
     const { favoritesCollection } = await connectDB();
-    const favorites = await favoritesCollection.find({ userEmail: req.params.email }).toArray();
-    res.send(favorites);
+    res.send(await favoritesCollection.find({ userEmail: req.params.email }).toArray());
   } catch (err) {
-    console.error(err);
     res.status(500).send({ message: err.message });
   }
 });
 
-app.delete("/favorites/:id", async (req, res) => {
-  try {
-    const { favoritesCollection } = await connectDB();
-    await favoritesCollection.deleteOne({ _id: new ObjectId(req.params.id) });
-    res.send({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send({ success: false, message: err.message });
-  }
-});
-
-// ---------- Export serverless ----------
+// ---------- EXPORT ----------
 module.exports = app;
 module.exports.handler = serverless(app);
