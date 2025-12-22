@@ -194,25 +194,32 @@ app.post("/meals", async (req, res) => {
   }
 });
 
-// Get all meals with default 6 for home page
+// Get all meals with optional limit and sort
 app.get("/meals", async (req, res) => {
   try {
     const { mealsCollection } = await connectDB();
-    const limit = parseInt(req.query.limit) || 6; // default 6 meals
-    const sortOrder = req.query.sort === "desc" ? -1 : 1;
+    let { limit, sort } = req.query;
 
-    const meals = await mealsCollection
-      .find()
-      .sort({ price: sortOrder })
-      .limit(limit)
-      .toArray();
+    let cursor = mealsCollection.find();
 
+    // Sorting by price
+    if (sort === "asc") cursor = cursor.sort({ price: 1 });
+    else if (sort === "desc") cursor = cursor.sort({ price: -1 });
+
+    // Limiting results only if limit is provided
+    if (limit) {
+      const numLimit = parseInt(limit);
+      if (numLimit > 0) cursor = cursor.limit(numLimit);
+    }
+
+    const meals = await cursor.toArray();
     res.send(meals);
   } catch (err) {
     console.log(err);
     res.status(500).send({ message: "Server error" });
   }
 });
+
 
 app.get("/meals/:id", async (req, res) => {
   try {
