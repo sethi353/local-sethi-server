@@ -355,6 +355,20 @@ app.patch("/orders/:id", async (req, res) => {
   else res.status(404).send({ success: false, message: "Order not found" });
 });
 
+// ---------- ADMIN DASHBOARD STATISTICS ----------
+// Get number of orders with status "pending"
+app.get("/orders/pending/count", async (req, res) => {
+  try {
+    const { ordersCollection } = await connectDB(); // always get fresh collection
+    const pendingOrders = await ordersCollection.countDocuments({ orderStatus: "pending" });
+    res.send({ pendingOrders });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send({ message: "Server error" });
+  }
+});
+
+
 // ---------- EXPORT ----------
 module.exports = app;
 module.exports.handler = serverless(app);
