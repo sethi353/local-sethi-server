@@ -231,12 +231,27 @@ app.post("/meals", async (req, res) => {
   }
 });
 
+// Get all meals with optional limit and sort
 app.get("/meals", async (req, res) => {
   try {
     const { mealsCollection } = await connectDB();
-    res.send(await mealsCollection.find().toArray());
+    const { limit, sort } = req.query;
+    
+    let cursor = mealsCollection.find();
+
+    // Sorting by price
+    if (sort === "asc") cursor = cursor.sort({ price: 1 });
+    else if (sort === "desc") cursor = cursor.sort({ price: -1 });
+
+    // Limiting results
+    const numLimit = parseInt(limit) || 0;
+    if (numLimit > 0) cursor = cursor.limit(numLimit);
+
+    const meals = await cursor.toArray();
+    res.send(meals);
   } catch (err) {
-    res.status(500).send({ message: err.message });
+    console.log(err);
+    res.status(500).send({ message: "Server error" });
   }
 });
 
