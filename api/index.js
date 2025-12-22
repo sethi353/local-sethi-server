@@ -7,7 +7,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ---------- MongoDB (Vercel Safe) ----------
+// ---------- MongoDB ----------
+
 let cachedClient = null;
 let cachedDb = null;
 
@@ -50,7 +51,6 @@ app.post("/users", async (req, res) => {
   try {
     const { usersCollection } = await connectDB();
     const user = req.body;
-
     const exists = await usersCollection.findOne({ email: user.email });
     if (exists) return res.send({ message: "User exists" });
 
@@ -176,78 +176,37 @@ app.patch("/role-request/:id", async (req, res) => {
   }
 });
 
-// ---------- ORDERS ----------
-app.post("/orders", async (req, res) => {
+// ---------- MEALS ----------
+app.post("/meals", async (req, res) => {
   try {
-    const { ordersCollection, usersCollection } = await connectDB();
-    const user = await usersCollection.findOne({ email: req.body.userEmail });
-    if (user?.status === "fraud") {
-      return res.status(403).send({ message: "Fraud users cannot place orders" });
+    const { mealsCollection, usersCollection } = await connectDB();
+    const chef = await usersCollection.findOne({ email: req.body.chefEmail });
+
+    if (chef?.status === "fraud") {
+      return res.status(403).send({ message: "Fraud chefs cannot create meals" });
     }
 
-    const order = {
-      ...req.body,
-      orderStatus: "pending",
-      orderTime: new Date(),
-    };
-
-    const result = await ordersCollection.insertOne(order);
+    const meal = { ...req.body, createdAt: new Date() };
+    const result = await mealsCollection.insertOne(meal);
     res.send(result);
   } catch (err) {
     res.status(500).send({ message: err.message });
   }
 });
 
-app.get("/orders/:email", async (req, res) => {
-  try {
-    const { ordersCollection } = await connectDB();
-    res.send(await ordersCollection.find({ userEmail: req.params.email }).toArray());
-  } catch (err) {
-    res.status(500).send({ message: err.message });
-  }
-});
-
-app.patch("/orders/:id", async (req, res) => {
-  try {
-    const { ordersCollection } = await connectDB();
-    const result = await ordersCollection.updateOne(
-      { _id: new ObjectId(req.params.id) },
-      { $set: { ...req.body, updatedAt: new Date() } }
-    );
-    res.send({ success: result.modifiedCount === 1 });
-  } catch (err) {
-    res.status(500).send({ message: err.message });
-  }
-});
-
-// ---------- MEALS ----------
-app.post("/meals", async (req, res) => {
-  try {
-    const { mealsCollection } = await connectDB();
-    const meal = { ...req.body, createdAt: new Date() };
-    res.send(await mealsCollection.insertOne(meal));
-  } catch (err) {
-    res.status(500).send({ message: err.message });
-  }
-});
-
-// Get all meals with optional limit and sort
+// Get all meals with default 6 for home page
 app.get("/meals", async (req, res) => {
   try {
     const { mealsCollection } = await connectDB();
-    const { limit, sort } = req.query;
-    
-    let cursor = mealsCollection.find();
+    const limit = parseInt(req.query.limit) || 6; // default 6 meals
+    const sortOrder = req.query.sort === "desc" ? -1 : 1;
 
-    // Sorting by price
-    if (sort === "asc") cursor = cursor.sort({ price: 1 });
-    else if (sort === "desc") cursor = cursor.sort({ price: -1 });
+    const meals = await mealsCollection
+      .find()
+      .sort({ price: sortOrder })
+      .limit(limit)
+      .toArray();
 
-    // Limiting results
-    const numLimit = parseInt(limit) || 0;
-    if (numLimit > 0) cursor = cursor.limit(numLimit);
-
-    const meals = await cursor.toArray();
     res.send(meals);
   } catch (err) {
     console.log(err);
@@ -266,44 +225,127 @@ app.get("/meals/:id", async (req, res) => {
   }
 });
 
+app.get("/meals/chef/:email", async (req, res) => {
+  const { mealsCollection } = await connectDB();
+  const meals = await mealsCollection.find({ chefEmail: req.params.email }).toArray();
+  res.send(meals);
+});
+
+app.delete("/meals/:id", async (req, res) => {
+  const { mealsCollection } = await connectDB();
+  const result = await mealsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+  res.send({ success: result.deletedCount === 1 });
+});
+
+app.put("/meals/:id", async (req, res) => {
+  const { mealsCollection } = await connectDB();
+  const result = await mealsCollection.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { ...req.body, updatedAt: new Date() } }
+  );
+  res.send({ success: result.modifiedCount === 1 });
+});
+
 // ---------- REVIEWS ----------
 app.post("/reviews", async (req, res) => {
-  try {
-    const { reviewsCollection } = await connectDB();
-    await reviewsCollection.insertOne({ ...req.body, date: new Date() });
-    res.send({ success: true });
-  } catch (err) {
-    res.status(500).send({ message: err.message });
-  }
+  const { reviewsCollection } = await connectDB();
+  await reviewsCollection.insertOne({ ...req.body, date: new Date() });
+  res.send({ success: true });
 });
 
 app.get("/reviews", async (req, res) => {
-  try {
-    const { reviewsCollection } = await connectDB();
-    res.send(await reviewsCollection.find().toArray());
-  } catch (err) {
-    res.status(500).send({ message: err.message });
-  }
+  const { reviewsCollection } = await connectDB();
+  const reviews = await reviewsCollection.find().sort({ date: -1 }).toArray();
+  res.send(reviews);
+});
+
+app.get("/reviews/:mealId", async (req, res) => {
+  const { reviewsCollection } = await connectDB();
+  const reviews = await reviewsCollection.find({ mealId: req.params.mealId }).sort({ date: -1 }).toArray();
+  res.send(reviews);
+});
+
+app.get("/reviews/user/:email", async (req, res) => {
+  const { reviewsCollection } = await connectDB();
+  const reviews = await reviewsCollection.find({ reviewerEmail: req.params.email }).toArray();
+  res.send(reviews);
+});
+
+app.put("/reviews/:id", async (req, res) => {
+  const { reviewsCollection } = await connectDB();
+  const { rating, comment } = req.body;
+  const result = await reviewsCollection.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { rating, comment, updatedAt: new Date() } }
+  );
+  res.send({ success: result.modifiedCount === 1 });
+});
+
+app.delete("/reviews/:id", async (req, res) => {
+  const { reviewsCollection } = await connectDB();
+  const result = await reviewsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+  res.send({ success: result.deletedCount === 1 });
 });
 
 // ---------- FAVORITES ----------
 app.post("/favorites", async (req, res) => {
-  try {
-    const { favoritesCollection } = await connectDB();
-    await favoritesCollection.insertOne({ ...req.body, addedTime: new Date() });
-    res.send({ success: true });
-  } catch (err) {
-    res.status(500).send({ message: err.message });
-  }
+  const { favoritesCollection } = await connectDB();
+  const exists = await favoritesCollection.findOne(req.body);
+  if (exists) return res.send({ exists: true });
+
+  await favoritesCollection.insertOne({ ...req.body, addedTime: new Date() });
+  res.send({ success: true });
 });
 
 app.get("/favorites/user/:email", async (req, res) => {
-  try {
-    const { favoritesCollection } = await connectDB();
-    res.send(await favoritesCollection.find({ userEmail: req.params.email }).toArray());
-  } catch (err) {
-    res.status(500).send({ message: err.message });
+  const { favoritesCollection } = await connectDB();
+  const favorites = await favoritesCollection.find({ userEmail: req.params.email }).toArray();
+  res.send(favorites);
+});
+
+app.delete("/favorites/:id", async (req, res) => {
+  const { favoritesCollection } = await connectDB();
+  await favoritesCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+  res.send({ success: true });
+});
+
+// ---------- ORDERS ----------
+app.post("/orders", async (req, res) => {
+  const { ordersCollection, usersCollection } = await connectDB();
+  const user = await usersCollection.findOne({ email: req.body.userEmail });
+
+  if (user?.status === "fraud") {
+    return res.status(403).send({ message: "Fraud users cannot place orders" });
   }
+
+  const order = { ...req.body, orderTime: new Date(), orderStatus: "pending" };
+  const result = await ordersCollection.insertOne(order);
+  res.send(result);
+});
+
+app.get("/orders/:email", async (req, res) => {
+  const { ordersCollection } = await connectDB();
+  const orders = await ordersCollection.find({ userEmail: req.params.email }).toArray();
+  res.send(orders);
+});
+
+app.get("/chef-orders/:email", async (req, res) => {
+  const { ordersCollection } = await connectDB();
+  const orders = await ordersCollection.find({ chefEmail: req.params.email }).toArray();
+  res.send(orders);
+});
+
+app.patch("/orders/:id", async (req, res) => {
+  const { ordersCollection } = await connectDB();
+  const { orderStatus } = req.body;
+
+  const result = await ordersCollection.updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { orderStatus, updatedAt: new Date() } }
+  );
+
+  if (result.modifiedCount === 1) res.send({ success: true });
+  else res.status(404).send({ success: false, message: "Order not found" });
 });
 
 // ---------- EXPORT ----------
